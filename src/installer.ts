@@ -21,12 +21,12 @@ export class Installer {
 
         execSync(`mkdir -p "${fullPath}"`, { stdio: 'inherit'});
 
-        execSync(`git clone https://github.com/venom-blockchain/fusion-producer.git "${fullPath}"`, {
+        execSync(`git clone -b feature/data-sources https://github.com/venom-blockchain/fusion-producer.git "${fullPath}"`, {
             stdio: 'inherit',
             cwd: fullPath
         });
 
-        execSync(`cargo build --release --features venom`, {
+        execSync(`cargo build --release`, {
             stdio: 'inherit',
             cwd: fullPath
         });

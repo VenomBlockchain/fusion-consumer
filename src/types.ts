@@ -1,17 +1,60 @@
-export enum TransportType {
+export enum TransportKind {
     mock = 'Mock',
     stdio = 'Stdio',
     http2 = 'Http2'
 }
 
-export interface IndexerConfig {
-    transport: TransportType,
-    url?: string;
-    installPath?: string;
-    dbPath?: string;
-    abiPath?: string;
-    filters?: MessageFilter[]
-}
+interface RpcConfig {
+    listen_address: string;
+    type: 'simple' | 'full';
+  }
+  
+  interface MetricsSettings {
+    listen_address: string;
+    collection_interval_sec: number;
+  }
+  
+  interface Source {
+    kind: string;
+    value: string;
+  }
+  
+  interface Handler {
+    kind: string;
+    handler: string;
+    event?: string;
+  }
+  
+  interface DataSource {
+    source: 'message' | 'contract';
+    src: Source;
+    handlers: Handler[];
+  }
+  
+  interface Transport {
+    kind: TransportKind;
+    listen_address?: string;
+  }
+
+  enum ScanKind {
+    test = 'TestJson',
+    network = 'FromNetwork'
+  }
+  
+  interface ScanType {
+    kind: ScanKind;
+    filename: string;
+  }
+  
+  export interface Config {
+    install_path: string;
+    rpc_config: RpcConfig;
+    metrics_settings: MetricsSettings;
+    data_sources: DataSource[];
+    transport: Transport;
+    scan_type: ScanType;
+  }
+  
 
 export interface MessageParam {
     name: string;

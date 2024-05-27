@@ -7,8 +7,8 @@ import { Transport } from './transport';
 import { TransportStdio } from './transport-stdio';
 import { TransportHttp2 } from './transport-http2';
 import {
-    IndexerConfig,
-    TransportType,
+    Config,
+    TransportKind,
     MessageFilter,
     ContractType,
     AddressOrCodeHash
@@ -18,29 +18,34 @@ import { TransportMock } from './transport-mock';
 
 export class Indexer {
 
-    protected readonly config: IndexerConfig;
+    protected readonly config: Config;
     protected readonly skipStart: boolean;
     protected readonly transport: Transport;
     protected readonly transportType;
 
-    constructor(config: IndexerConfig) {
-        this.config = config;
+    constructor() {
+        const fusionConfigPath = path.join(process.cwd(), 'fusion.json');
+        if (!fs.existsSync(fusionConfigPath)) {
+            throw Error(`File ${fusionConfigPath} does not exist`);
+        }
+
+        this.config = JSON.parse(fs.readFileSync(fusionConfigPath, 'utf8'));
 
         this.skipStart = false;
 
-        switch (config.transport) {
-            case TransportType.http2: {
-                const messageDecoder = new MessageDecoder(this.config.filters, this.config.abiPath);
-                this.transport = new TransportHttp2(this.config.url ?? this.http2Url(), messageDecoder);
-                if (this.config.url) {
-                    this.skipStart = true;
-                }
+        switch (this.config.transport.kind) {
+            case TransportKind.http2: {
+                const messageDecoder = new MessageDecoder([], '');
+                this.transport = new TransportHttp2('http://'+this.config.transport.listen_address ?? this.http2Url(), messageDecoder);
+                // if (this.config.transport.listen_address) {
+                //     this.skipStart = true;
+                // }
                 break;
-            } case TransportType.stdio: {
+            } case TransportKind.stdio: {
                 this.transport = new TransportStdio();
                 break;
-            } case TransportType.mock: {
-                this.transport = new TransportMock(config);
+            } case TransportKind.mock: {
+                this.transport = new TransportMock(this.config);
                 break;
             } default: {
                 throw Error('unsupported transport type');
@@ -49,11 +54,14 @@ export class Indexer {
     }
 
     run(subscribers: any) {
+        console.log('Running the run function with subscribers:', subscribers);
+        
         if (!this.skipStart) {
-            const { fullPath, execFullPath } = Installer.EnsureInstall(this.config.installPath);
-
+            console.log('skipStart is false, proceeding with the function');
+            const { fullPath, execFullPath } = Installer.EnsureInstall(this.config.install_path);
+    
             this.GenerateIndexerConfig(fullPath);
-
+    
             // run indexer
             const dataFolder = this.getDataFolder(fullPath);
             const { dir, base } = path.parse(execFullPath);
@@ -67,20 +75,30 @@ export class Indexer {
                     cwd: dir
                 }
             );
-
+    
+            console.log('Spawned child process with base:', base);
+    
             if (!this.transport.onProcessStarted(child)) {
                 child.stdout.on('data', process.stdout.write);
             }
-
+    
             child.on('exit', function (code, signal) {
+                console.log('Child process exited with code:', code, 'and signal:', signal);
                 throw Error('unexpected indexer termination');
             });
-
+    
+            child.stdout.on('data', (data) => {
+                console.log(`stdout: ${data}`);
+            });
+    
             child.stderr.on('data', (data) => {
                 console.error(data.toString('utf8'));
             });
+        } else {
+            console.log('skipStart is true, skipping the function');
         }
-
+    
+        console.log('Running the transport with subscribers:', subscribers);
         this.transport.run(subscribers);
     }
 
@@ -89,67 +107,17 @@ export class Indexer {
     }
 
     GenerateIndexerConfig(fullPath: string) {
-        const message_filters : MessageFilter[] = Object.assign(this.config.filters);
+        const dataFolder = this.getDataFolder(fullPath);
 
-        // check abi path
-        for(let filter of message_filters) {
-
-            const contract = (filter.type as ContractType).contract;
-            if (contract) {
-                contract.abi_path = path.resolve(this.config.abiPath, contract.abi_path);
-                if (!fs.existsSync(contract.abi_path)) {
-                    throw Error(`ABI ${contract.abi_path} does not exists`);
-                }
-            }
-
-            for (let entry of filter.entries) {
-                // fix address or hash
-                if (this.isText(entry.sender)) {
-                    entry.sender = this.makeAddressOrHash(entry.sender);
-                }
-
-                if (this.isText(entry.receiver)) {
-                    entry.receiver = this.makeAddressOrHash(entry.receiver);
-                }
-            }
+        const fusionConfigPath = path.join(process.cwd(), 'fusion.json');
+        if (!fs.existsSync(fusionConfigPath)) {
+            throw Error(`File ${fusionConfigPath} does not exist`);
         }
 
-        const dataFolder = this.getDataFolder(fullPath);
-        const indexerConfig = stringify({
-            rpc_config: {
-                listen_address: "0.0.0.0:8081",
-                type: 'simple',
-            },
-            metrics_settings: {
-                listen_address: "0.0.0.0:10000",
-                collection_interval_sec: 10,
-            },
-            scan_type: {
-                kind: 'FromNetwork',
-                node_config: {
-                    db_path: this.config.dbPath,
-                    adnl_port: 30100,
-                    temp_keys_path: dataFolder + '/adnl-keys.json',
-                    parallel_archive_downloads: 32,
-                    db_options: {
-                        rocksdb_lru_capacity: String("512 MB"),
-                        cells_cache_size: String("4 GB"),
-                    }
-                }
-            },
-            serializer: {
-                kind: this.config.transport == TransportType.http2 ? 'Protobuf' : 'Json',
-            },
-            transport: {
-              kind: this.config.transport,
-              ...((this.config.transport == TransportType.http2) && { capacity: 1024, listen_address: this.http2RawURL() }),
-            },
-            filter_config: {
-                message_filters
-            }
-        });
+        const config = JSON.parse(fs.readFileSync(fusionConfigPath, 'utf8'))
 
-        fs.writeFileSync(dataFolder + '/config.yaml', indexerConfig);
+        const fusionConfig = stringify({ ...config, install_path: undefined });
+        fs.writeFileSync(dataFolder + '/config.yaml', fusionConfig);
     }
 
     protected getDataFolder(fullPath: string) {

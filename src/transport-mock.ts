@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as Codec from '@venom-blockchain/fusion-codec'
 
 import { Transport } from './transport';
-import { Block, ContractType, IndexerConfig, MessageEntry } from './types';
+import { Block, ContractType, Config, MessageEntry } from './types';
 
 type Contracts = {
     [key: string]: {
@@ -15,10 +15,10 @@ type Contracts = {
 }
 
 export class TransportMock implements Transport {
-    public config: IndexerConfig;
+    public config: Config;
     public abis: Codec.AbiEntity[] = [];
 
-    constructor(config: IndexerConfig) {
+    constructor(config: Config) {
         this.config = config;
     }
 
@@ -27,74 +27,74 @@ export class TransportMock implements Transport {
     }
 
     run(subscribers: any) {
-        const files = fs.readdirSync(path.resolve(this.config.abiPath));
-        const contracts: Contracts = {};
-        const msgsBySender: {[key: string]: MessageEntry} = {};
-        const msgsByReceiver: {[key: string]: MessageEntry} = {};
+        // const files = fs.readdirSync(path.resolve(this.config.abiPath));
+        // const contracts: Contracts = {};
+        // const msgsBySender: {[key: string]: MessageEntry} = {};
+        // const msgsByReceiver: {[key: string]: MessageEntry} = {};
 
-        files.forEach(async file => {
-            if (path.extname(file) === '.json') {
-                const filePath = path.join(path.resolve(this.config.abiPath), file);
-                this.abis[file] = require(filePath);
-            }
-        });
+        // files.forEach(async file => {
+        //     if (path.extname(file) === '.json') {
+        //         const filePath = path.join(path.resolve(this.config.abiPath), file);
+        //         this.abis[file] = require(filePath);
+        //     }
+        // });
 
-        this.config.filters.map((filter) => {
-            if (typeof filter.type === 'object' && 'contract' in filter.type) {
-                const { contract } = filter.type as ContractType;
+        // this.config.filters.map((filter) => {
+        //     if (typeof filter.type === 'object' && 'contract' in filter.type) {
+        //         const { contract } = filter.type as ContractType;
 
-                contracts[contract.name] = {
-                    abi: this.abis[contract.abi_path],
-                    entries: filter.entries,
-                };
-            } else if (filter.type === "any_message") {
-                filter.entries.forEach((entry) => {
-                    if (entry.sender) {
-                        if (typeof entry.sender === 'string') {
-                            msgsBySender[entry.sender] = entry;
-                        } else if (typeof entry.sender === 'object') {
-                            msgsBySender[entry.sender.address] = entry;
-                        }
-                    } else if (entry.receiver) {
-                        if (typeof entry.receiver === 'string') {
-                            msgsByReceiver[entry.receiver] = entry;
-                        } else if (typeof entry.receiver === 'object') {
-                            msgsByReceiver[entry.receiver.address] = entry;
-                        }
-                    }
-                })
-            } else {
-                throw new Error(`Invalid filter type: ${filter.type}`);
-            }
-        })
+        //         contracts[contract.name] = {
+        //             abi: this.abis[contract.abi_path],
+        //             entries: filter.entries,
+        //         };
+        //     } else if (filter.type === "any_message") {
+        //         filter.entries.forEach((entry) => {
+        //             if (entry.sender) {
+        //                 if (typeof entry.sender === 'string') {
+        //                     msgsBySender[entry.sender] = entry;
+        //                 } else if (typeof entry.sender === 'object') {
+        //                     msgsBySender[entry.sender.address] = entry;
+        //                 }
+        //             } else if (entry.receiver) {
+        //                 if (typeof entry.receiver === 'string') {
+        //                     msgsByReceiver[entry.receiver] = entry;
+        //                 } else if (typeof entry.receiver === 'object') {
+        //                     msgsByReceiver[entry.receiver.address] = entry;
+        //                 }
+        //             }
+        //         })
+        //     } else {
+        //         throw new Error(`Invalid filter type: ${filter.type}`);
+        //     }
+        // })
 
-        const { data: { blocks } } = JSON.parse(fs.readFileSync(path.resolve(this.config.dbPath), 'utf8'));
+        // const { data: { blocks } } = JSON.parse(fs.readFileSync(path.resolve(this.config.dbPath), 'utf8'));
 
-        blocks.forEach((b: Block) => {
-            const { transactions } = JSON.parse(Codec.deserialize(b.boc, 'block'))
+        // blocks.forEach((b: Block) => {
+        //     const { transactions } = JSON.parse(Codec.deserialize(b.boc, 'block'))
 
-            Object.keys(transactions).forEach((txHash) => {
-                const tx = transactions[txHash]
+        //     Object.keys(transactions).forEach((txHash) => {
+        //         const tx = transactions[txHash]
 
-                const decodedMsg = decodeMsg(contracts, tx.in_msg, 'message')
-                decodedMsg.flat().filter((item) => !!item).forEach((item) => subscribers[item.name](tx.in_msg, item.call))
+        //         const decodedMsg = decodeMsg(contracts, tx.in_msg, 'message')
+        //         decodedMsg.flat().filter((item) => !!item).forEach((item) => subscribers[item.name](tx.in_msg, item.call))
 
-                if (msgsBySender[tx.in_msg.src]) {
-                    subscribers[msgsBySender[tx.in_msg.src].name](tx.in_msg)
-                }
+        //         if (msgsBySender[tx.in_msg.src]) {
+        //             subscribers[msgsBySender[tx.in_msg.src].name](tx.in_msg)
+        //         }
 
-                if (msgsByReceiver[tx.in_msg.dst]) {
-                    subscribers[msgsByReceiver[tx.in_msg.dst].name](tx.in_msg)
-                }
+        //         if (msgsByReceiver[tx.in_msg.dst]) {
+        //             subscribers[msgsByReceiver[tx.in_msg.dst].name](tx.in_msg)
+        //         }
 
-                transactions[txHash].out_msgs.map((msg) => {
-                    if (msg.msg_type_name === 'extOut') {
-                        const decodedMsg = decodeMsg(contracts, msg, 'event')
-                        decodedMsg.flat().filter((item) => !!item).forEach((item) => subscribers[item.name](msg, item.event))
-                    }
-                })
-            });
-        });
+        //         transactions[txHash].out_msgs.map((msg) => {
+        //             if (msg.msg_type_name === 'extOut') {
+        //                 const decodedMsg = decodeMsg(contracts, msg, 'event')
+        //                 decodedMsg.flat().filter((item) => !!item).forEach((item) => subscribers[item.name](msg, item.event))
+        //             }
+        //         })
+        //     });
+        // });
     }
 }
 

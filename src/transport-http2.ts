@@ -45,63 +45,75 @@ export class TransportHttp2 implements Transport {
         const client = http2.connect(this.url);
         client.on('error', (err) => this.onClientError(err));
 
-        let request = client.request({ ':path': '/messages/data' });
+        // INFO fusion_producer::transport::http2: Setting route: /message/highload-wallet-v2
+        // INFO fusion_producer::transport::http2: Setting route: /message/wallet-v3
+        // INFO fusion_producer::transport::http2: Setting route: /message/wallet
+        // INFO fusion_producer::transport::http2: Setting route: /message/set-code-multisig
+        // INFO fusion_producer::transport::http2: Setting route: /event/segmint-nft-minted
+        // INFO fusion_producer::transport::http2: Setting route: /event/ventory-nft-created
+        // INFO fusion_producer::transport::http2: Setting route: /event/dragonz-land-nft-created
+        // INFO fusion_producer::transport::http2: Setting route: /event/venom-stake-deposit
+
+        let request = client.request({ ':path': '/message/wallet' });
         request.on('error', (err) => this.onStreamError(err));
 
-        request.setEncoding('binary');
+        // request.setEncoding('binary');
 
         let buffer: Buffer;
         request.on('data', (data) => {
+            console.log('data:', data);
+        })
 
-            const dataBuffer = Buffer.from(data, 'binary');
+        //     const dataBuffer = Buffer.from(data, 'binary');
 
-            let actualData;
-            if (buffer) {
-                actualData = Buffer.concat([buffer, dataBuffer]);
-            } else {
-                actualData = dataBuffer;
-                        }
+        //     let actualData;
+        //     if (buffer) {
+        //         actualData = Buffer.concat([buffer, dataBuffer]);
+        //     } else {
+        //         actualData = dataBuffer;
+        //                 }
 
-            const SMALEST_MESSAGE = 8;
-            const reader = new Reader(actualData);
+        //     const SMALEST_MESSAGE = 8;
+        //     const reader = new Reader(actualData);
 
-            let nextPos = 0;
-            while ((actualData.length - reader.pos) > SMALEST_MESSAGE) {
-                const length = reader.uint64();
-                if (length.high > 0) {
-                    this.logger.log({
-                        level: 'info',
-                        message: `http2 stream error: wrong length`,
-                    });
-                    throw Error('message length too large')
-                } else if (length.low > (actualData.length - reader.pos)) {
-                    break;
-                    }
+        //     let nextPos = 0;
+        //     while ((actualData.length - reader.pos) > SMALEST_MESSAGE) {
+        //         const length = reader.uint64();
+        //         if (length.high > 0) {
+        //             this.logger.log({
+        //                 level: 'info',
+        //                 message: `http2 stream error: wrong length`,
+        //             });
+        //             throw Error('message length too large')
+        //         } else if (length.low > (actualData.length - reader.pos)) {
+        //             break;
+        //             }
 
-                const message : any = this.message.decode(reader, length.low);
-                nextPos = reader.pos;
+        //         const message : any = this.message.decode(reader, length.low);
+        //         nextPos = reader.pos;
 
-                if (this.subscribers[message.filterName]) {
-                    const messageObject = this.message.toObject(message, { defaults: true, longs: String });
-                    this.subscribers[message.filterName](this.messageDecoder.decode(messageObject));
-                }
-            }
+        //         if (this.subscribers[message.filterName]) {
+        //             const messageObject = this.message.toObject(message, { defaults: true, longs: String });
+        //             this.subscribers[message.filterName](this.messageDecoder.decode(messageObject));
+        //         }
+        //     }
 
-            if (actualData.length > nextPos) {
-                buffer = actualData.slice(nextPos);
-            } else {
-                buffer = null;
-            }
-        });
+        //     if (actualData.length > nextPos) {
+        //         buffer = actualData.slice(nextPos);
+        //     } else {
+        //         buffer = null;
+        //     }
+        // });
     }
 
     protected onStreamError(err: any) {
-        if ((Date.now() - this.startTime) > TransportHttp2.START_TIMEOUT ) {
+        // if ((Date.now() - this.startTime) > TransportHttp2.START_TIMEOUT ) {
             this.logger.log({
                 level: 'info',
                 message: `http2 stream error: ${err}, reconnecting...`,
             });
-        }
+        // }
+
         this.connect();
     }
 

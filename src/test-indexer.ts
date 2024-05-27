@@ -1,10 +1,10 @@
-import { IndexerConfig, Transport, TransportMock } from './';
+import { Config, Transport, TransportMock } from './';
 
 export class TestIndexer {
-    protected readonly config: IndexerConfig;
+    protected readonly config: Config;
     protected readonly transport: Transport;
 
-    constructor(config: IndexerConfig) {
+    constructor(config: Config) {
         this.config = config;
         this.transport = new TransportMock(this.config);
     }
